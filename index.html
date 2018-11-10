@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>bare metal calculator</title>
+        <style>
+            @viewport {
+                zoom: 1.0;
+                min-zoom: 1.0;
+                max-zoom: 1.0;
+                user-zoom: fixed;
+            }
+            @font-face {
+                font-family: 'dseg14';
+                src: url("./DSEG14Classic-Bold.woff2") format("woff2"),
+                url("./DSEG14Classic-Bold.woff") format("woff");
+            }
+
+            body, body * {
+                box-sizing: border-box;
+            }
+            .calculator {
+                width: 80vmin;
+                height: 80vmin;
+                margin: auto auto;
+            }
+            .display {
+                height: 12vmin;
+                width: 100%;
+                text-align: right;
+                font-size: 8vmin;
+                padding: 1vmin;
+                font-family: dseg14;
+            }
+            .keys {
+                display: grid;
+                grid-template-columns: repeat(4,1fr);
+                grid-gap: 5vmin;
+                grid-auto-rows: 10vmin;
+                grid-auto-flow: dense;
+            }
+            .keys button {
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: 2rem;
+            }
+            button {
+                background: #eee;
+            }
+            .key-1, .key-2, .key-3,
+            .key-4, .key-5, .key-6,
+            .key-7, .key-8, .key-9,
+            .key-0, .key-dot {
+                background-color: #fff;
+            }
+            .key-00, .key-0, .key-dot {
+                grid-row: 5;
+            }
+            .key-7, .key-8, .key-9 { grid-row: 2; }
+            .key-4, .key-5, .key-6 { grid-row: 3; }
+            .key-1, .key-2, .key-3 { grid-row: 4; }
+            .key-plus, .key-minus, 
+            .key-times, .key-div, 
+            .key-calc { grid-column: 4; }
+            .key-clear { background: #ffcccc; }
+            .op-plus .key-plus, 
+            .op-minus .key-minus, 
+            .op-times .key-times, 
+            .op-div .key-div, 
+            .memory .key-memadd, .memory .key-memrecall {
+                background: #ccffcc;
+            }
+        </style>
+    </head>
+    <body>
+        <article id="calculator" class="calculator">
+        <section id="display" class="display">0</section>
+        <section id="keys" class="keys"></section>
+        </section>
+        <script>
+            function create(kind) {
+                let result = document.createElement(kind);
+                return result;
+            }
+            function text(str) {
+                let result = document.createTextNode(str);
+                return result;
+            }
+            function get(id) {
+                let result = document.getElementById(id);
+                return result;
+            }
+
+            let state = {
+                stack: [0],
+                acc: null,
+                dot: null,
+                op: null
+            };
+
+            function updateDisplay() {
+                let val = null != state.acc ? state.acc : state.stack[state.stack.length-1] || 0;
+
+                let displaySection = get('display');
+                let textNode = displaySection.firstChild;
+                displaySection.replaceChild(text(''+val), textNode);
+
+                let calculator = get('calculator');
+                if (null != state.mem) {
+                    calculator.classList.add('memory');
+                } else {
+                    calculator.classList.remove('memory');
+                }
+                calculator.classList.remove('op-plus');
+                calculator.classList.remove('op-minus');
+                calculator.classList.remove('op-times');
+                calculator.classList.remove('op-div');
+                if (null != state.op) {
+                    calculator.classList.add('op-'+state.op);
+                }
+            }
+            function addDigit(n) {
+                let val = state.acc || 0;
+
+                let mult = Math.pow(10, n.length||1);
+                if (null == state.dot) {
+                    val *= mult;
+                    val += +n;
+                } else {
+                    state.dot *= mult;
+                    val += +n / state.dot;
+                }
+
+                state.acc = val;
+            }
+
+            function setPoint() {
+                if (null == state.dot) {
+                    state.dot = 1;
+                }
+            }
+
+            function maybePushAcc() {
+                if (null != state.acc) {
+                    state.stack.push(state.acc);
+                    state.acc = null;
+                    state.dot = null;
+                }
+            }
+
+            function setOp(_, op) {
+                calc();
+                state.op = op;
+            }
+
+            function calc() {
+                maybePushAcc();                
+                if (state.op && state.stack.length > 1) {
+                    let val1 = state.stack.pop();
+                    let val2 = state.stack.pop();
+                    let val = 0;
+                    switch(state.op) {
+                        case 'plus':  val = val2+val1; break;
+                        case 'minus': val = val2-val1; break;
+                        case 'times': val = val2*val1; break;
+                        case 'div':   val = val2/val1; break;
+                    }
+                    state.op = null;
+                    state.stack.push(val);
+                }
+            }
+
+            function clear() {
+                state = {
+                    stack: [0]
+                }
+            }
+
+            function memAdd() {
+                maybePushAcc();
+                state.mem = (state.mem || 0) + (state.stack[state.stack.length-1] || 0);
+            }
+            function memRec() {
+                if (null != state.mem) {
+                    state.acc = null;
+                    state.dot = null;
+                    state.stack.push(state.mem);
+                }
+                if (state.last == 'memrecall') {
+                    state.mem = null;
+                }
+            }
+
+            function k(s, n=s, f=addDigit) {
+                return { s, n, f };
+            }
+            const allKeys = [
+                k(1),k(2),k(3),
+                k(4),k(5),k(6),
+                k(7),k(8),k(9),
+                k('00'),
+                k(0),
+                k('.', 'dot', setPoint),
+                k('+', 'plus', setOp),
+                k('-', 'minus', setOp),
+                k('x', 'times', setOp),
+                k('/', 'div', setOp),
+                k('=', 'calc', calc),
+                k('C', 'clear', clear),
+                k('M+', 'memadd', memAdd),
+                k('MR/C', 'memrecall', memRec),
+
+            ]
+
+            function createKey(k) {
+                let keysSection = get('keys');
+                let key = create('button');
+                key.appendChild(document.createTextNode(`${k.s}`));
+                key.type = 'button';
+                key.classList.add('key-'+k.n);
+                keysSection.appendChild(key);
+                const keyHandler = (ev) => {
+                    k.f(k.s, k.n);
+                    state.last = k.n;
+                    updateDisplay();
+                    ev.stopPropagation();
+                    ev.preventDefault();
+                };
+                key.addEventListener('click', keyHandler);
+                key.addEventListener('touchend', keyHandler);
+            }
+
+            function init() {
+                for (let t of allKeys) {
+                    createKey(t);
+                }
+
+                updateDisplay();
+
+                body.addEventListener('dblclick', function(ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                });
+            }
+            init();
+        </script>
+    </body>
+</html>
