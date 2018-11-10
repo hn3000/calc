@@ -210,6 +210,11 @@
 
             ]
 
+            function stopHandler () {
+                ev.stopPropagation();
+                ev.preventDefault();
+            };
+
             function createKey(k) {
                 let keysSection = get('keys');
                 let key = create('button');
@@ -226,6 +231,7 @@
                 };
                 key.addEventListener('click', keyHandler);
                 key.addEventListener('touchend', keyHandler);
+                key.addEventListener('touchstart', stopHandler);
             }
 
             function init() {
@@ -235,10 +241,8 @@
 
                 updateDisplay();
 
-                body.addEventListener('dblclick', function(ev) {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                });
+                body.addEventListener('dblclick', stopHandler);
+                body.addEventListener('touchstart', stopHandler);
             }
             init();
         </script>
